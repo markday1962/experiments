@@ -1,0 +1,81 @@
+---
+# Built for using ubuntu 18.04
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Used to create an instance for testing backups
+
+Mappings:
+  InstanceMap:
+    Instance:
+      AMI: ami-0a4af4432b19b24a8
+      IAMRole: DevInstanceRole
+      Type: m5a.4xlarge
+      Subnet: subnet-faa5d7b3
+      SecurityGroup: sg-0c8bffcea7c180c8c
+      VolumeSize: 500
+Resources:
+  EC2:
+    Type: "AWS::EC2::Instance"
+    DeletionPolicy: Retain
+    Properties:
+      IamInstanceProfile: !FindInMap [InstanceMap, Instance, IAMRole]
+      ImageId: !FindInMap [InstanceMap, Instance, AMI]
+      InstanceType: !FindInMap [InstanceMap, Instance, Type]
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeviceIndex: 0
+          SubnetId:
+            !FindInMap [InstanceMap, Instance, Subnet]
+          DeleteOnTermination: true
+          GroupSet:
+            - !FindInMap [InstanceMap, Instance, SecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !FindInMap [InstanceMap, Instance, VolumeSize]
+      Tags:
+        - Key: Description
+          Value: created to test volume and data backups
+        - Key: Environment
+          Value: development
+        - Key: Service
+          Value: devops
+        - Key: TurnOff
+          Value: daily
+        - Key: TurnOn
+          Value: true
+      UserData:
+        "Fn::Base64":
+          !Sub |
+            #!/bin/bash -xe
+            # Call CloudFormation::Init
+            sudo cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2 --configsets default
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - common
+            - docker
+            - provision_ec2
+        common:
+          commands:
+            a_add_group:
+              command: sudo usermod -aG docker markday && sudo usermod -aG docker andrei
+        docker:
+          commands:
+            a_reload_deamon:
+              command: sudo systemctl daemon-reload
+            b_restart_docker:
+              command: sudo systemctl restart docker
+        provision_ec2:
+          commands:
+            a_download_binary:
+              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/loadData /tmp/loadData
+            b_permission:
+              command: sudo chmod 0777 /tmp/loadData
+            c_execute:
+              command: cd /tmp && sudo ./loadData
+Outputs:
+  InstanceID:
+    Description: The id of the newly created instance
+    Value: !Ref EC2
