@@ -31,3 +31,21 @@ services:
           driver: syslog
           options:
               syslog-facility: "local1"
+  elasticsearch:
+    image: elasticsearch-local
+    container_name: elasticsearch
+    ports:
+      # HTTP interface
+      - "9200:9200"
+      # node communication
+      - "9300:9300"
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+    volumes:
+      - /mnt/data/elasticsearch/data/:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1

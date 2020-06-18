@@ -2,7 +2,7 @@
 # Built for using ubuntu 18.04
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: Used to create an instance for testing backups
+Description: Used to create an instance for testing backups and restore redis, arango and elasticsearch backups.
 
 Mappings:
   InstanceMap:
@@ -16,7 +16,7 @@ Mappings:
 Resources:
   EC2:
     Type: "AWS::EC2::Instance"
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
     Properties:
       IamInstanceProfile: !FindInMap [InstanceMap, Instance, IAMRole]
       ImageId: !FindInMap [InstanceMap, Instance, AMI]
@@ -56,26 +56,104 @@ Resources:
           default:
             - common
             - docker
-            - provision_ec2
+            - arango_setup
+            - redis_setup
+            - elasticsearch_setup
+            - config_setup
+            - build_docker_image
+            - start_compose
+            - configure_elasticsearch
+            - restore_arango
         common:
           commands:
             a_add_group:
-              command: sudo usermod -aG docker markday && sudo usermod -aG docker andrei
+              command: sudo usermod -aG docker markday
         docker:
           commands:
             a_reload_deamon:
               command: sudo systemctl daemon-reload
             b_restart_docker:
               command: sudo systemctl restart docker
-        provision_ec2:
+        arango_setup:
           commands:
-            a_download_binary:
-              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/loadData /tmp/loadData
-            b_permission:
-              command: sudo chmod 0777 /tmp/loadData
-            c_execute:
-              command: cd /tmp && sudo ./loadData
-Outputs:
-  InstanceID:
-    Description: The id of the newly created instance
-    Value: !Ref EC2
+            a_create_dir:
+              command: sudo mkdir -p /mnt/data/arango/backup/ && sudo mkdir -p /mnt/data/arango/shared/ \
+                          && sudo mkdir -p /mnt/data/arango/arangodb3/
+            b_permission_dir:
+              command: sudo chmod -R 0777 /mnt/data/arango/
+        redis_setup:
+          commands:
+            a_create_dir:
+              command: sudo mkdir -p /mnt/data/redis/data/
+            b_permission_dir:
+              command: sudo chmod -R 0777 /mnt/data/redis/
+            c_download_dump:
+              command: >-
+                current_app_id=`curl -s 'https://app.cipher.ai/version'|jq --raw-output '.[0]["Aistemos-Application-Id"]'`;
+                sudo aws s3 cp s3://aistemos-data-backups/redis/${current_app_id}-pfcache/dump.rdb /mnt/data/redis/data/
+        elasticsearch_setup:
+          commands:
+            a_create_dir:
+              command: sudo mkdir -p /mnt/data/elasticsearch/data/
+            b_permission_dir:
+              command: sudo chmod -R 0777 /mnt/data/elasticsearch/
+        config_setup:
+          commands:
+            a_create_dir:
+              command: sudo mkdir -p /mnt/data/config/
+            b_permission_dir:
+              command: sudo chmod 0777 /mnt/data/config/
+            c_download_arango_download:
+              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/getArangoBackup /mnt/data/config/
+            d_permission_file:
+              command: sudo chmod 0777 /mnt/data/config/getArangoBackup
+            e_start_backup_download:
+              command: cd /mnt/data/config/ && ./getArangoBackup &
+            c_download_arango_restore:
+              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/arango-restore.sh /mnt/data/arango/shared/
+            d_download_docker_compose:
+              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/docker-compose.yml /mnt/data/config/
+            d_download_docker_file:
+              command: sudo aws s3 cp s3://aistemos-cloud-init/backup-checker/Dockerfile /mnt/data/config/
+        build_docker_image:
+          commands:
+            a_build_image:
+              command: cd /mnt/data/config/ && sudo docker build -t elasticsearch-local .
+        start_compose:
+          commands:
+            a_run_compose:
+              command: cd /mnt/data/config/ && docker-compose up -d
+        configure_elasticsearch:
+          commands:
+            a_sleep:
+              command: sudo /bin/sleep 240
+            b_create_es_repositories:
+              command: >-
+                #!/bin/bash -ex
+                  health=`curl -s localhost:9200/_cat/health`;
+                  echo $health;
+                  status="$(echo "$health" | cut -d ' ' -f 4)";
+                  echo "Cluster health $status";
+                  create_marvin_repo_response=`curl -s -XPUT localhost:9200/_snapshot/marvin -H 'Content-Type: application/json' -d '{"type": "s3", "settings": {"bucket": "aistemos-data-backups","base_path": "es/marvin/cipher", "region": "eu-west-1"}}'`;
+                  sleep 10;
+                  create_zaphod_repo_response=`curl -s -XPUT localhost:9200/_snapshot/zaphod -H 'Content-Type: application/json' -d '{"type": "s3", "settings": {"bucket": "aistemos-data-backups","base_path": "es/zaphod/cipher", "region": "eu-west-1"}}'`;
+                  sleep 10
+            c_restore_indices:
+              command: >-
+                current_app_id=`curl -s 'https://app.cipher.ai/version'|jq --raw-output '.[0]["Aistemos-Application-Id"]'`;
+                sleep 5;
+                snapshot_info=`curl -s localhost:9200/_cat/snapshots/${current_app_id}`;
+                echo "Snapshot Info: $snapshot_info"
+                sleep 5;
+                snapshot_id="$(echo "$snapshot_info" | cut -d ' ' -f 1)";
+                echo "Snapshot Id: $snapshot_id"
+                sleep 5;
+                curl -s -XPOST localhost:9200/_snapshot/${current_app_id}/${snapshot_id}/_restore -H 'Content-Type: application/json' -d "{\"indices\":\"cipher\"}"
+        restore_arango:
+          commands:
+            a_chmod:
+              command: sudo chmod 0777 /mnt/data/arango/shared/arango-restore.sh
+            b_set_map_count:
+              command: sudo sysctl -w "vm.max_map_count=1024000"
+            # c_restore_collections:
+            #   command: docker exec -d arangodb /bin/sh /data/arango-restore.sh

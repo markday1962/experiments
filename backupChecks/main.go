@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -18,10 +16,12 @@ import (
 )
 
 const (
-	arangoDir = "/mnt/data/arango/"
+	//arangoDir = "/mnt/data/arango/"
 	arangoBackupDir = "/mnt/data/arango/backup/"
 	arangoSharedDir = "/mnt/data/arango/shared/"
 	arangoLibDir = "/mnt/data/arango/arangodb3/"
+	elasticsearchDir = "/mnt/data/elasticsearch"
+	elasticsearchDataDir = "/mnt/data/elasticsearch/data"
 	redisDir = "/mnt/data/redis/"
 	redisDataDir = "/mnt/data/redis/data/"
 	configDir = "/mnt/data/config/"
@@ -69,59 +69,6 @@ func getLiveCipher() (string, error) {
 	return c.Host, nil
 }
 
-// Create download folders
-func makeDir() error {
-	os.Mkdir(redisDir, 0777)
-	os.Mkdir(redisDataDir, 0777)
-	os.Mkdir(arangoDir, 0777)
-	os.Mkdir(arangoBackupDir, 0777)
-	os.Mkdir(arangoSharedDir, 0777)
-	os.Mkdir(arangoLibDir, 0777)
-	os.Mkdir(configDir, 0777)
-	return nil
-}
-
-func downloadRedisBackup(lc string) {
-
-	df := "dump.rdb"
-	pf := "redis" + "/" + lc + "-pfcache/"
-
-	params := &s3.ListObjectsInput{
-		Bucket: aws.String(dataBucket),
-		Prefix: aws.String(pf),
-	}
-
-	resp, err := svc.ListObjects(params)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	for _, key := range resp.Contents {
-		if strings.Contains(*key.Key, df) {
-			fmt.Println(strings.Contains(*key.Key, df))
-
-			os.Chdir(redisDataDir)
-			file, err := os.Create(df)
-			if err != nil {
-				exitErrorf("Unable to create file %v, %v", df, err)
-			}
-
-			defer file.Close()
-
-			downloader := s3manager.NewDownloader(sess)
-			_, err = downloader.Download(file,
-				&s3.GetObjectInput{
-					Bucket: aws.String(dataBucket),
-					Key:    aws.String(pf + "/" + df),
-				})
-			if err != nil {
-				exitErrorf("Unable to download item %q, %v", df, err)
-			}
-			//fmt.Println("Downloaded", file.Name, numBytes(replace _), "bytes")
-		}
-	}
-}
-
 func downloadArangoBackup() {
 	/* Download the most current arango db backup files that has been uploaded to aws s3 */
 	pf := "arango"
@@ -137,20 +84,23 @@ func downloadArangoBackup() {
 		os.Exit(1)
 	}
 
-	bd := getDateOffset(0)
+	bd := ""
+	dates := []string{}
 	for _, key := range resp.Contents {
 		s := strings.Split(*key.Key, "/")
-		if s[1] == bd {
-			break
-		} else {
-			for i := 1; i < 32; i++ {
-				ofd := getDateOffset(int(^uint(int(i) - 1)))
-				if s[1] == ofd {
-					fmt.Printf("%v\n", ofd)
-					bd = ofd
+		if len(s) > 2 {
+			if s[1] == getDate() {
+				bd = s[1]
+				break
+			} else {
+				if ! contains(dates, s[1]) {
+					dates = append(dates, s[1])
 				}
 			}
 		}
+	}
+	if len(bd) != 8 {
+		bd = dates[len(dates)-1]
 	}
 
 	for _, key := range resp.Contents {
@@ -185,87 +135,30 @@ func downloadArangoBackup() {
 	}
 }
 
-func getDateOffset(of int) string {
-	/* returns a string of the current date with offset applied */
-	dt := time.Now().AddDate(0, 0, of)
+func contains(s []string, e string) bool {
+	// Helper function to see if a slice contains a value
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func getDate() string {
+	// Helper function to return current date in a format used by the S3 prekey
+	dt := time.Now().AddDate(0, 0, 0)
 	return dt.Format("20060102")
 }
 
-func startDockerServices() {
-	/* Download compose file and start services */
-
-	sess2, _ := session.NewSession(&aws.Config{Region: aws.String("eu-west-1")})
-
-	pf := "backup-checker"
-	df := "docker-compose.yml"
-
-	os.Chdir(configDir)
-	file, err := os.Create(df)
-	if err != nil {
-		exitErrorf("Unable to create file %q, %v", df, err)
-	}
-
-	defer file.Close()
-
-	downloader := s3manager.NewDownloader(sess2)
-	_, err = downloader.Download(file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(configBucket),
-			Key:    aws.String(pf + "/" + df),
-		})
-	if err != nil {
-		exitErrorf("Unable to download item %q, %v", df, err)
-	}
-
-	cmd := exec.Command("docker-compose", "up")
-	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func getArangoBackupScript(){
-	/* Download helper script to restore arango db */
-
-	sess2, _ := session.NewSession(&aws.Config{Region: aws.String("eu-west-1")})
-
-	pf := "backup-checker"
-	df := "arango-restore.sh"
-
-	os.Chdir(arangoSharedDir)
-	file, err := os.Create(df)
-	if err != nil {
-		exitErrorf("Unable to create file %q, %v", df, err)
-	}
-
-	defer file.Close()
-
-	downloader := s3manager.NewDownloader(sess2)
-	_, err = downloader.Download(file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(configBucket),
-			Key:    aws.String(pf + "/" + df),
-		})
-	if err != nil {
-		exitErrorf("Unable to download item %q, %v", df, err)
-	}
-}
-
-
 func main() {
-	lc, err := getLiveCipher()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	err = makeDir()
+	_, err := getLiveCipher()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	downloadRedisBackup(lc)
 	downloadArangoBackup()
-	startDockerServices()
-	getArangoBackupScript()
 
+	os.Exit(0)
 }
