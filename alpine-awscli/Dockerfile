@@ -1,4 +1,4 @@
-# docker build -t alpine-aws-cli --build-arg CF=test.rtf .
+# docker build -t 111177312954.dkr.ecr.eu-west-1.amazonaws.com/aistemos/alpine-awscli:0.1.1 .
 FROM alpine:3.10
 
 LABEL maintainer="Mark Day<mark.day@aistemos.com>"
@@ -24,12 +24,4 @@ RUN pip install awscli
 RUN apk --purge -v del py-pip
 RUN rm /var/cache/apk/*
 
-# add credentials file
-ADD credentials /root/.aws/credentials
-
-# copy down the config file
-ARG CF
-RUN aws s3 cp s3://aistemos-cipher-configs/${CF} /config-src/${CF}
-
-CMD ["/bin/bash"]
-ENTRYPOINT ["sh", "-c", "cp /config-src/* /config/", "--"]
+ENTRYPOINT ["sh", "-c", "aws s3 cp s3://aistemos-classifiers-w2v-cpc/s300_w10_sg1_mc5_hs1.pkl /var/w2v_cpc/", "--"]
