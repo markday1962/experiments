@@ -1,0 +1,9 @@
+# Perfoms a bgsave on the redis database
+#!/bin/bash
+# Version 1.0.0
+SHELL=/bin/bash
+MAILTO="notifications@aistemos.com"
+EMAIL="notifications@aistemos.com"
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+00 4 * * * root /usr/local/bin/bgsave
