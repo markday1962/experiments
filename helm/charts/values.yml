@@ -1,0 +1,77 @@
+# Common
+machine_hostname: "{{.Node.Hostname}}"
+
+
+# Service specific
+ccui:
+  version: "0.1.8"
+  ports: 9000
+
+choreographer-service:
+  version: "1.4.0-j9-2"
+  ports: 8010, 9010
+
+comparables-service:
+  version: "3.1.2"
+  ports: 8006
+
+data-export-service:
+  version: "0.15.0"
+  ports: 8022
+
+domain-service:
+  version: "1.0.5"
+  ports: 8008, 9008, 9808
+
+frontend-service:
+  version: "2.10.2"
+  ports: 5000
+
+portfolio-cluster-service:
+  version: "2.3.0"
+  ports: 8003
+
+report-reader-service:
+  version: "1.9.1-j9-2"
+  ports: 8018, 9018, 9818
+
+report-writer-service-2:
+  version: "1.1.0"
+
+text-search-service:
+  version: "2.3.0-j9-2"
+  ports: 8020
+
+hyperscripts-service:
+  version: "1.9.4"
+  ports: 8021
+
+# Secrets
+ifi:
+  api:
+    user: ""
+    password: ""
+keycloak:
+  db:
+    user: ""
+    password: ""
+    db: adb
+  admin:
+    user: ""
+    password: ""
+auth:
+  api:
+    key: ""
+cipherdb:
+  user: ""
+  password: ""
+  db: anotherdb
+google:
+  api:
+    key: ""
+aws:
+  apiGateway:
+      key: ""
+  smtp:
+    user: ""
+    password: ""

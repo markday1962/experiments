@@ -74,4 +74,5 @@ func backupRedis(host string) {
 			os.Exit(1)
 		}
 	}
+	os.Exit(0)
 }
