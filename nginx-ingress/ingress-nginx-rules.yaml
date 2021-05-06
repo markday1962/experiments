@@ -1,0 +1,124 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-nginx-rules
+  annotations:
+# https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/rewrite/README.md
+#    ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  # tls:
+  # - hosts:
+  #   - app5.test.aistemos.com
+  #   secretName: tls-secret
+  rules:
+  - host: app.test.aistemos.com
+    http:
+      paths:
+        - path: /pear
+          backend:
+            serviceName: pear-service
+            servicePort: 5678
+        - path: /choreographer-service-classifiers-v2(/|$)(.*)
+          backend:
+            serviceName: choreographer-service-classifiers-v2-svc
+            servicePort: 8010
+        - path: /choreographer-service(/|$)(.*)
+          backend:
+            serviceName: choreographer-service-svc
+            servicePort: 8010
+        - path: /classifier-result-cache-service(/|$)(.*)
+          backend:
+            # grpc no connection
+            serviceName: classifier-result-cache-service-svc
+            servicePort: 7027
+        - path: /comparables-service(/|$)(.*)
+          backend:
+            serviceName: comparables-service-svc
+            servicePort: 8006
+        - path: /custom-classifiers-service(/|$)(.*)
+          backend:
+            serviceName: custom-classifiers-service-svc
+            servicePort: 8015
+        - path: /custom-classifiers-workers(/|$)(.*)
+          backend:
+            serviceName: custom-classifiers-workers-svc
+            servicePort: 8015
+        - path: /data-export-service(/|$)(.*)
+          backend:
+            serviceName: data-export-service-svc
+            servicePort: 8022
+        - path: /domain-service(/|$)(.*)
+          backend:
+            serviceName: domain-service-svc
+            servicePort: 8008
+        - path: /frontend-service(/|$)(.*)
+          backend:
+            serviceName: frontend-service-svc
+            servicePort: 5000
+        - path: /frontend-service-viewer(/|$)(.*)
+          backend:
+            serviceName: frontend-service-viewer-svc
+            servicePort: 5000
+        - path: /frontend-trainingset-service(/|$)(.*)
+          backend:
+            serviceName: frontend-trainingset-service-svc
+            servicePort: 5000
+        - path: /hyperscripts-service(/|$)(.*)
+          backend:
+            serviceName: hyperscripts-service-svc
+            servicePort: 8021
+        - path: /ocypod-cipher(/|$)(.*)
+          backend:
+            serviceName: ocypod-cipher-svc
+            servicePort: 8023
+        - path: /organisation-service(/|$)(.*)
+          backend:
+            serviceName: organisation-service-svc
+            servicePort: 8024
+        - path: /patent-matching-service(/|$)(.*)
+          backend:
+            serviceName: patent-matching-service-svc
+            servicePort: 8025
+        - path: /portfolio-cluster-service(/|$)(.*)
+          backend:
+            serviceName: portfolio-cluster-service-svc
+            servicePort: 8003
+        - path: /report-reader-cache-service(/|$)(.*)
+          backend:
+            serviceName: report-reader-cache-service-svc
+            servicePort: 8018
+        - path: /drill(/|$)(.*)
+          backend:
+            serviceName: report-reader-drill-service-svc
+            servicePort: 8047
+        - path: /report-reader-service(/|$)(.*)
+          backend:
+            # grpc no connection
+            serviceName: report-reader-service-svc
+            servicePort: 7018
+        - path: /zookeeper(/|$)(.*)
+          backend:
+            serviceName: report-reader-zk-service-svc
+            servicePort: 8080
+        - path: /report-writer-service-2-lb(/|$)(.*)
+          backend:
+            # grpc no connection
+            serviceName: report-writer-service-2-lb-svc
+            servicePort: 7017
+        - path: /report-writer-service-2(/|$)(.*)
+          backend:
+            # grpc no connection
+            serviceName: report-writer-service-2-svc
+            servicePort: 7017
+        - path: /text-search-service(/|$)(.*)
+          backend:
+            serviceName: text-search-service-svc
+            servicePort: 8020
+        - path: /training-set-service(/|$)(.*)
+          backend:
+            # grpc no connection
+            serviceName: training-set-service-svc
+            servicePort: 7026

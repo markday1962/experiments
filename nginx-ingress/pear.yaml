@@ -1,0 +1,23 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: pear-app
+  labels:
+    app: pear
+spec:
+  containers:
+    - name: pear-app
+      image: hashicorp/http-echo
+      args:
+        - "-text=pear"
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: pear-service
+spec:
+  selector:
+    app: pear
+  ports:
+    - port: 5678 # Default port for image
